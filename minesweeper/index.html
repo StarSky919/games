@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1">
+  <meta name="renderer" content="webkit" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=0" />
+  <link rel="stylesheet" href="../src/style.css" type="text/css" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 5vmin;
+      min-height: 100vh;
+      color: #FFFFFF;
+      background: #9898FF;
+    }
+
+    #container {
+      position: relative;
+      width: 87.5vw;
+      min-height: 87.5vmin;
+      color: #000000;
+      background: #FFFFFF;
+      user-select: none;
+    }
+
+    #tab {
+      display: flex;
+      justify-content: space-between;
+      padding: 1vmin 2vmin;
+      font-size: 4vmin;
+    }
+
+    #tab>* {
+      display: flex;
+      align-items: center;
+    }
+
+    #menu {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      color: #FFFFFF;
+      background: rgba(0, 0, 0, 0.65);
+      transition: opacity 0.25s;
+    }
+
+    #menu.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #menu>* {
+      display: flex;
+      justify-content: space-between;
+      margin: 2vmin;
+      width: 62.5vw;
+    }
+
+    #menu input {
+      padding: 0.5vmin 1vmin;
+      border: 1px solid #E0E0E0;
+      font-size: 90%;
+      transition: color 0.25s, border-color 0.25s;
+    }
+
+    #menu input:focus {
+      color: #9898FF;
+      border-color: #9898FF;
+    }
+
+    #menu .button {
+      justify-content: center;
+      padding: 0.5vmin 1vmin;
+      color: #000000;
+      background: #FFFFFF;
+      border: 1px solid #E0E0E0;
+      font-size: 90%;
+      transition: color 0.25s, border-color 0.25s;
+    }
+
+    #menu .button:hover {
+      color: #9898FF;
+      border-color: #9898FF;
+    }
+
+    #game {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    #game .grid {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      border: 1px solid #E0E0E0;
+    }
+
+    #game .grid.hide {
+      color: transparent;
+      background: #BFBFBF;
+    }
+
+    #game .grid.flagged::after {
+      content: "🚩";
+      position: absolute;
+      color: #000000;
+    }
+  </style>
+  <title>扫雷 | StarSky919的小游戏合集</title>
+</head>
+
+<body>
+  <div id="container">
+    <div id="tab">
+      <span id="message">扫雷 Minesweeper</span>
+      <span>时间：<span id="time">00 : 00</span></span>
+      <i id="button" class="fas fa-cog"></i>
+    </div>
+    <div id="game"></div>
+    <div id="menu">
+      <div style="justify-content: center;">点按左上角文字可快速重新开始</div>
+      <div>
+        <span>行数</span>
+        <input type="number" name="config" id="row_count" value="9">
+      </div>
+      <div>
+        <span>列数</span>
+        <input type="number" name="config" id="col_count" value="9">
+      </div>
+      <div>
+        <span>雷数</span>
+        <input type="number" name="config" id="mine_count" value="10">
+      </div>
+      <p class="button" id="start">开始游戏</p>
+      <p class="button" id="back">返回</p>
+    </div>
+  </div>
+  <script>
+    
+  </script>
+  <script type="module">
+    import { $, Time, randomize, sleep, createElement, createLongClick } from '/src/utils.js';
+    const ground = {};
+    const container = $('game');
+    const menu = $('menu');
+    const message = $('message');
+    const time = $('time');
+    let gameStart = false;
+    let groundMined = false;
+    let minedCount = 0;
+    let startTime = 0;
+
+    function getConfig() {
+      return {
+        rows: parseInt($('row_count').value) || 9,
+        cols: parseInt($('col_count').value) || 9,
+        mineCount: parseInt($('mine_count').value) || 0
+      }
+    }
+
+    function getAround(row, col, expand = true) {
+      const result = [
+        ground[`${row - 1}-${col}`],
+        ground[`${row}-${col - 1}`],
+        ground[`${row}-${col + 1}`],
+        ground[`${row + 1}-${col}`],
+      ];
+      if (expand) result.push(
+        ground[`${row - 1}-${col - 1}`],
+        ground[`${row - 1}-${col + 1}`],
+        ground[`${row + 1}-${col - 1}`],
+        ground[`${row + 1}-${col + 1}`],
+      );
+      return result.filter(grid => !!grid);
+    }
+
+    function render({ rows, cols, mineCount }) {
+      const cWidth = parseFloat(getComputedStyle(container).width);
+      container.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      const size = cWidth / cols;
+      for (const key in ground) {
+        const { row, col, flagged, mined, hide, error } = ground[key];
+        const classList = ['grid'];
+        flagged && classList.push('flagged');
+        mined && classList.push('mined');
+        hide && classList.push('hide');
+        fragment.appendChild(ground[key].elm = createElement({
+          tagName: 'span',
+          classList,
+          style: {
+            width: `${size}px`,
+            height: `${size}px`,
+            fontSize: `${size / 2}px`,
+            background: error ? error : flagged && !gameStart && (mined ? '#CCFFCC' : '#FFCCCC')
+          },
+          attr: { row, col },
+          text: mined ? '💣' : getAround(row, col).filter(grid => grid ? grid.mined : false).length || ''
+        }));
+      }
+      container.appendChild(fragment);
+    }
+
+    function mine({ rows, cols, mineCount }, { row, col }) {
+      let mines = [];
+      for (let i = 0; i < mineCount; i++) mines.push(true);
+      for (let i = mines.length; i < rows * cols; i++) mines.push(false);
+      do mines = randomize(mines); while (mines[row * cols + col]);
+      for (const key in ground) {
+        const grid = ground[key];
+        grid.mined = mines[grid.row * cols + grid.col];
+      }
+      render({ rows, cols, mineCount });
+      groundMined = true;
+    }
+
+    function sweep(row, col, config, target) {
+      const { rows, cols } = config;
+      if (!gameStart || (row < 0 && row > rows - 1) || (col < 0 && col > cols - 1)) return;
+      if (target) {
+        const { mined, elm } = target;
+        if (mined) {
+          for (const key in ground) {
+            const grid = ground[key];
+            grid.hide = false;
+            grid.elm.classList.remove('hide');
+            if (grid.flagged) {
+              grid.elm.style.background = grid.mined ? '#CCFFCC' : '#FFCCCC';
+            }
+          }
+          target.error = elm.style.background = '#FC2222';
+          message.innerText = '😵😵😵';
+          return gameStart = false;
+        }
+      }
+      const grid = ground[`${row}-${col}`];
+      grid.hide = false;
+      grid.elm.classList.remove('hide');
+      const around = getAround(row, col);
+      let temp = [...around.filter(({ mined }) => !mined)];
+      while (temp.length) {
+        const grid = temp.shift();
+        if (!grid.hide || grid.flagged) continue;
+        grid.hide = false;
+        grid.elm.classList.remove('hide');
+        const around = getAround(grid.row, grid.col);
+        if (around.filter(({ mined, flagged }) => mined || flagged).length) continue;
+        around.filter(({ mined }) => !mined).forEach(grid => temp.push(grid));
+      }
+    }
+
+    function initGame(config) {
+      const { rows, cols, mineCount } = config;
+      if (rows * cols > 2 ** 12) return alert('区域过大，请重新输入');
+      if (mineCount + 1 > rows * cols) return alert('雷数过多，请重新输入');
+      for (const key in ground) Reflect.deleteProperty(ground, key);
+      for (let i = 0; i < rows; i++)
+        for (let j = 0; j < cols; j++) ground[`${i}-${j}`] = { mined: false, flagged: false, hide: true, row: i, col: j };
+      render(config), window.onresize = () => render(config);
+      container.setAttribute('mine_count', mineCount);
+      container.onclick = function({ target }) {
+        if (!gameStart) return;
+        const row = Number(target.getAttribute('row'));
+        const col = Number(target.getAttribute('col'));
+        const grid = ground[`${row}-${col}`];
+        if (!groundMined) mine(config, { row, col }), startTime = Date.now();
+        grid.flagged || grid.hide && sweep(row, col, config, grid);
+        if (document.querySelectorAll('.grid.hide').length === mineCount) {
+          message.innerText = '😎😎😎', gameStart = false;
+          for (const key in ground) {
+            const grid = ground[key];
+            grid.hide = false;
+            grid.elm.classList.remove('hide');
+            if (grid.flagged) grid.elm.style.background = grid.mined ? '#CCFFCC' : '#FFCCCC';
+          }
+        }
+      }
+      gameStart = true, groundMined = false, minedCount = 0, startTime = 0;
+      message.innerText = `已标记：${minedCount} / ${mineCount}`;
+      time.innerText = Time.formatTime(0);
+      menu.classList.add('hide');
+    }
+
+    function timer() {
+      if (gameStart && startTime) {
+        const passed = Math.floor((Date.now() - startTime) / 1000);
+        time.innerText = Time.formatTime(passed);
+      }
+      requestAnimationFrame(timer);
+    }
+    requestAnimationFrame(timer);
+
+    function flag({ target }) {
+      const grid = ground[`${Number(target.getAttribute('row'))}-${Number(target.getAttribute('col'))}`];
+      if (!grid.hide || !gameStart) return;
+      grid.flagged = !grid.flagged;
+      grid.elm.classList.toggle('flagged');
+      minedCount += grid.flagged ? 1 : -1;
+      message.innerText = `已标记：${minedCount} / ${Number(container.getAttribute('mine_count'))}`;
+    }
+    createLongClick(container, 0.35, flag);
+    container.addEventListener('contextmenu', event => event.preventDefault());
+    container.addEventListener('mouseup', event => (event.button === 2) && flag(event));
+
+    $('start').addEventListener('click', () => initGame(getConfig()));
+    $('back').addEventListener('click', () => menu.classList.add('hide'));
+    $('button').addEventListener('click', () => {
+      menu.classList.remove('hide');
+    });
+    message.addEventListener('click', () => groundMined && initGame(getConfig()));
+  </script>
+</body>
+
+</html>
