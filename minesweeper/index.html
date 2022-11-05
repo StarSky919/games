@@ -132,11 +132,11 @@
       <div style="justify-content: center;">点按左上角文字可快速重新开始</div>
       <div>
         <span>行数</span>
-        <input type="number" name="config" id="row_count" value="9">
+        <input type="number" name="config" id="row_count" value="8">
       </div>
       <div>
         <span>列数</span>
-        <input type="number" name="config" id="col_count" value="9">
+        <input type="number" name="config" id="col_count" value="8">
       </div>
       <div>
         <span>雷数</span>
@@ -147,7 +147,7 @@
     </div>
   </div>
   <script>
-    
+
   </script>
   <script type="module">
     import { $, Time, randomize, sleep, createElement, createLongClick } from '/src/utils.js';
@@ -247,16 +247,18 @@
       const grid = ground[`${row}-${col}`];
       grid.hide = false;
       grid.elm.classList.remove('hide');
-      const around = getAround(row, col);
-      let temp = [...around.filter(({ mined }) => !mined)];
+      if (grid.elm.innerText) return;
+      let temp = [...getAround(row, col)];
       while (temp.length) {
         const grid = temp.shift();
-        if (!grid.hide || grid.flagged) continue;
-        grid.hide = false;
-        grid.elm.classList.remove('hide');
+        if (!grid.hide) continue;
+        if (!grid.flagged) {
+          grid.hide = false;
+          grid.elm.classList.remove('hide');
+        }
+        if (grid.elm.innerText) continue;
         const around = getAround(grid.row, grid.col);
-        if (around.filter(({ mined, flagged }) => mined || flagged).length) continue;
-        around.filter(({ mined }) => !mined).forEach(grid => temp.push(grid));
+        around.forEach(grid => temp.push(grid));
       }
     }
 
