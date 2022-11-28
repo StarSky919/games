@@ -169,19 +169,17 @@
       }
     }
 
-    function getAround(row, col, expand = true) {
+    function getAround(row, col) {
       const result = [
-        ground[`${row - 1}-${col}`],
         ground[`${row}-${col - 1}`],
         ground[`${row}-${col + 1}`],
-        ground[`${row + 1}-${col}`],
-      ];
-      if (expand) result.push(
+        ground[`${row - 1}-${col}`],
         ground[`${row - 1}-${col - 1}`],
         ground[`${row - 1}-${col + 1}`],
+        ground[`${row + 1}-${col}`],
         ground[`${row + 1}-${col - 1}`],
         ground[`${row + 1}-${col + 1}`],
-      );
+      ];
       return result.filter(grid => !!grid);
     }
 
@@ -233,11 +231,12 @@
         if (mined) {
           for (const key in ground) {
             const grid = ground[key];
-            grid.hide = false;
-            grid.elm.classList.remove('hide');
-            if (grid.flagged) {
-              grid.elm.style.background = grid.mined ? '#CCFFCC' : '#FFCCCC';
+            if (grid.mined) {
+              grid.hide = false;
+              grid.elm.classList.remove('hide');
             }
+            if (grid.flagged)
+              grid.elm.style.background = grid.mined ? '#CCFFCC' : '#FFCCCC';
           }
           target.error = elm.style.background = '#FC2222';
           message.innerText = '😵😵😵';
