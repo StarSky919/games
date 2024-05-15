@@ -132,11 +132,11 @@
       <div style="justify-content: center;">点按左上角文字可快速重新开始</div>
       <div>
         <span>行数</span>
-        <input type="number" name="config" id="row_count" value="8">
+        <input type="number" name="config" id="row_count" value="9">
       </div>
       <div>
         <span>列数</span>
-        <input type="number" name="config" id="col_count" value="8">
+        <input type="number" name="config" id="col_count" value="9">
       </div>
       <div>
         <span>雷数</span>
@@ -210,16 +210,27 @@
       container.appendChild(fragment);
     }
 
-    function mine({ rows, cols, mineCount }, { row, col }) {
+    function mine(config, row, col) {
+      const { rows, cols, mineCount } = config;
+      const fc = row * cols + col;
+      let around = [fc - rows - 1, fc - rows, fc - rows + 1, fc - 1, fc + 1, fc + rows - 1, fc + rows, fc + rows + 1]
+        .filter(Number.isFinite);
       let mines = [];
       for (let i = 0; i < mineCount; i++) mines.push(true);
       for (let i = mines.length; i < rows * cols; i++) mines.push(false);
-      do mines = randomize(mines); while (mines[row * cols + col]);
+      const checkAround = mines => {
+        around = randomize(around);
+        for (let i = 0; i < Math.min(rows * cols - mineCount, 8); i++) {
+          const isMined = mines[around[i]];
+          if (isMined) return isMined;
+        }
+      };
+      do mines = randomize(mines); while (mines[fc] || checkAround(mines));
       for (const key in ground) {
         const grid = ground[key];
         grid.mined = mines[grid.row * cols + grid.col];
       }
-      render({ rows, cols, mineCount });
+      render(config);
       groundMined = true;
     }
 
@@ -264,7 +275,7 @@
     function initGame(config) {
       const { rows, cols, mineCount } = config;
       if (rows * cols > 2 ** 12) return alert('区域过大，请重新输入');
-      if (mineCount + 1 > rows * cols) return alert('雷数过多，请重新输入');
+      if (mineCount * 2 > rows * cols) return alert('雷数过多，请重新输入');
       for (const key in ground) Reflect.deleteProperty(ground, key);
       for (let i = 0; i < rows; i++)
         for (let j = 0; j < cols; j++) ground[`${i}-${j}`] = { mined: false, flagged: false, hide: true, row: i, col: j };
@@ -275,7 +286,7 @@
         const row = Number(target.getAttribute('row'));
         const col = Number(target.getAttribute('col'));
         const grid = ground[`${row}-${col}`];
-        if (!groundMined) mine(config, { row, col }), startTime = Date.now();
+        if (!groundMined) mine(config, row, col), startTime = Date.now();
         grid.flagged || grid.hide && sweep(row, col, config, grid);
         if (document.querySelectorAll('.grid.hide').length === mineCount) {
           message.innerText = '😎😎😎', gameStart = false;
